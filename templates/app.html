@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Transfer App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px 40px;
+            border-radius: 15px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            text-align: center;
+            width: 380px;
+            transition: transform 0.3s ease;
+        }
+
+        .container:hover {
+            transform: scale(1.02);
+        }
+
+        h1 {
+            font-size: 26px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            color: #f8f8f8;
+            letter-spacing: 1.2px;
+        }
+
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        input[type="file"]::file-selector-button {
+            background-color: #ff7eb3;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background-color: #ff65a3;
+        }
+
+        button {
+            background: #00c6ff;
+            color: #fff;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 17px;
+            font-weight: 600;
+            transition: background 0.3s ease;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background: #009ddc;
+        }
+
+        .progress-bar {
+            background-color: #4dff88;
+            height: 22px;
+            width: 0%;
+            border-radius: 6px;
+            margin-top: 12px;
+            transition: width 0.4s ease;
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        .alert {
+            margin-top: 20px;
+            padding: 12px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+
+        .alert.success {
+            color: #4dff88;
+        }
+
+        .alert.error {
+            color: #ff6b6b;
+        }
+
+        .credits {
+            margin-top: 25px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .credits a {
+            color: #00c6ff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .credits a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 500px) {
+            .container {
+                width: 90%;
+                padding: 20px 25px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            button {
+                font-size: 15px;
+                padding: 12px 15px;
+            }
+        }
+
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .controls button {
+            width: 48%;
+        }
+
+        .speed {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload File</h1>
+        <form id="upload-form" onsubmit="event.preventDefault();">
+            <input type="file" id="file-input" required>
+            <button type="button" onclick="startUpload()">Start Upload</button>
+            <div class="controls">
+                <button type="button" onclick="pauseUpload()">Pause</button>
+                <button type="button" onclick="resumeUpload()">Resume</button>
+                <button type="button" onclick="cancelUpload()">Cancel</button>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar" id="upload-progress"></div>
+            </div>
+            <div class="speed" id="upload-speed"></div>
+            <div class="alert" id="upload-alert"></div>
+        </form>
+
+        <h1>Download File</h1>
+        <input type="text" id="filename" placeholder="Enter filename to download" required>
+        <button type="button" onclick="startDownload()">Start Download</button>
+        <div class="controls">
+            <button type="button" onclick="pauseDownload()">Pause</button>
+            <button type="button" onclick="resumeDownload()">Resume</button>
+            <button type="button" onclick="cancelDownload()">Cancel</button>
+        </div>
+        <div class="progress-container">
+            <div class="progress-bar" id="download-progress"></div>
+        </div>
+        <div class="speed" id="download-speed"></div>
+        <div class="alert" id="download-alert"></div>
+
+        <div class="credits">
+            <p>Made with ❤️ by <a href="#">NguyenNguyen</a></p>
+        </div>
+    </div>
+
+    <script>
+        const CHUNK_SIZE = 256 * 1024; // 256KB
+
+        let uploadController;
+        let downloadController;
+        let uploadStartTime;
+        let downloadStartTime;
+
+        async function startUpload() {
+            const file = document.getElementById('file-input').files[0];
+            const progressBar = document.getElementById('upload-progress');
+            const uploadAlert = document.getElementById('upload-alert');
+            const uploadSpeed = document.getElementById('upload-speed');
+
+            if (!file) {
+                alert('Please select a file to upload.');
+                return;
+            }
+
+            uploadController = new AbortController();
+            const signal = uploadController.signal;
+            const filename = file.name;
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            progressBar.style.width = '0%';
+            uploadAlert.style.display = 'none';
+            uploadStartTime = Date.now();
+
+            for (let start = 0; start < file.size; start += CHUNK_SIZE) {
+                if (signal.aborted) {
+                    uploadAlert.textContent = 'Upload canceled.';
+                    uploadAlert.classList.add('error');
+                    uploadAlert.style.display = 'block';
+                    return;
+                }
+
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunk = file.slice(start, end);
+
+                const formData = new FormData();
+                formData.append('file', chunk);
+                formData.append('filename', filename);
+                formData.append('start', start);
+                formData.append('end', end);
+
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData,
+                        signal: signal
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Upload failed: ' + response.statusText);
+                    }
+
+                    const progress = ((start + CHUNK_SIZE) / file.size) * 100;
+                    progressBar.style.width = `${Math.min(progress, 100)}%`;
+
+                    const elapsedTime = (Date.now() - uploadStartTime) / 1000; // seconds
+                    const speed = (start + CHUNK_SIZE) / elapsedTime / 1024; // KBps
+                    uploadSpeed.textContent = `Upload Speed: ${speed.toFixed(2)} KB/s`;
+                } catch (error) {
+                    uploadAlert.textContent = `Failed to upload chunk [${start}-${end}]: ${error.message}`;
+                    uploadAlert.classList.add('error');
+                    uploadAlert.style.display = 'block';
+                    return;
+                }
+            }
+
+            uploadAlert.textContent = 'File uploaded successfully!';
+            uploadAlert.classList.add('success');
+            uploadAlert.style.display = 'block';
+        }
+
+        function pauseUpload() {
+            if (uploadController) {
+                uploadController.abort();
+            }
+        }
+
+        function resumeUpload() {
+            startUpload();
+        }
+
+        function cancelUpload() {
+            if (uploadController) {
+                uploadController.abort();
+            }
+            const uploadAlert = document.getElementById('upload-alert');
+            uploadAlert.textContent = 'Upload canceled.';
+            uploadAlert.classList.add('error');
+            uploadAlert.style.display = 'block';
+        }
+
+        async function startDownload() {
+            const filename = document.getElementById('filename').value;
+            const progressBar = document.getElementById('download-progress');
+            const downloadAlert = document.getElementById('download-alert');
+            const downloadSpeed = document.getElementById('download-speed');
+
+            if (!filename) {
+                alert('Please enter a filename to download.');
+                return;
+            }
+
+            downloadController = new AbortController();
+            const signal = downloadController.signal;
+            const response = await fetch(`/download?filename=${encodeURIComponent(filename)}`, {
+                method: 'GET',
+                signal: signal
+            });
+
+            if (!response.ok) {
+                downloadAlert.textContent = `Download failed: ${response.statusText}`;
+                downloadAlert.classList.add('error');
+                downloadAlert.style.display = 'block';
+                return;
+            }
+
+            const contentLength = response.headers.get('Content-Length');
+            const totalChunks = Math.ceil(contentLength / CHUNK_SIZE);
+            let receivedLength = 0;
+            const reader = response.body.getReader();
+
+            downloadStartTime = Date.now();
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                receivedLength += value.length;
+
+                const progress = (receivedLength / contentLength) * 100;
+                progressBar.style.width = `${Math.min(progress, 100)}%`;
+
+                const elapsedTime = (Date.now() - downloadStartTime) / 1000; // seconds
+                const speed = receivedLength / elapsedTime / 1024; // KBps
+                downloadSpeed.textContent = `Download Speed: ${speed.toFixed(2)} KB/s`;
+            }
+
+            downloadAlert.textContent = 'File downloaded successfully!';
+            downloadAlert.classList.add('success');
+            downloadAlert.style.display = 'block';
+        }
+
+        function pauseDownload() {
+            if (downloadController) {
+                downloadController.abort();
+            }
+        }
+
+        function resumeDownload() {
+            startDownload();
+        }
+
+        function cancelDownload() {
+            if (downloadController) {
+                downloadController.abort();
+            }
+            const downloadAlert = document.getElementById('download-alert');
+            downloadAlert.textContent = 'Download canceled.';
+            downloadAlert.classList.add('error');
+            downloadAlert.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
